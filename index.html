@@ -198,17 +198,12 @@
 <body style="margin:0;background:#f4f5fb;">
 
 <!--
-  SUBMISSIONS -> dairydoves@gmail.com  (via FormSubmit.co, no server code needed)
-  IMPORTANT, ONE-TIME STEP: the very first submission makes FormSubmit send an
-  "Activate Form" email to dairydoves@gmail.com. Click the link in that email,
-  then every submission after that arrives in the inbox as a neat table.
+  SUBMISSIONS -> Google Sheet (via Google Apps Script web app, see SHEET_URL below).
+  Each submission is added as a new row with a timestamp.
 -->
 
 <div class="dd-wrap">
-<form id="ddForm" action="https://formsubmit.co/dairydoves@gmail.com" method="POST" novalidate>
-  <input type="hidden" name="_subject" value="New Dairy Dove Order Form Submission">
-  <input type="hidden" name="_template" value="table">
-  <input type="hidden" name="_captcha" value="false">
+<form id="ddForm" method="POST" novalidate>
   <input type="text" name="_honey" class="dd-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
 
   <!-- ================= HEADER ================= -->
@@ -235,7 +230,7 @@
 
       <div class="dd-f"><label for="city">City :</label><input type="text" id="city" name="City"></div>
       <div class="dd-f dd-right dd-tall"><label for="phone">Phone :</label><input type="tel" id="phone" name="Phone"></div>
-      <div class="dd-f dd-wide"><label for="email">Email :</label><input type="email" id="email" name="email" required></div>
+      <div class="dd-f dd-wide"><label for="email">Email :</label><input type="email" id="email" name="Email" required></div>
 
       <div class="dd-f dd-full"><label for="brand_name">Brand Name :</label><input type="text" id="brand_name" name="Brand Name"></div>
       <div class="dd-f dd-full"><label for="product_name">Product Name :</label><input type="text" id="product_name" name="Product Name"></div>
@@ -357,12 +352,22 @@
   var form = document.getElementById('ddForm');
   var msg = document.getElementById('ddMsg');
   var btn = document.getElementById('ddSubmit');
-  var AJAX_URL = 'https://formsubmit.co/ajax/dairydoves@gmail.com';
+  // Google Sheet (Apps Script web app)
+  var SHEET_URL = 'https://script.google.com/macros/s/AKfycbyAj4AwSmRfhGza7nLXQxIjMxDAPzE6eOFfd5IvcD1ILh9tW4_NdZg-PoKwpygFFwYL/exec';
 
   function show(text, ok) {
     msg.textContent = text;
     msg.style.color = ok ? '#0a8a3a' : '#c62828';
     msg.style.display = 'block';
+  }
+
+  function sendToSheet(fd) {
+    var params = new URLSearchParams();
+    fd.forEach(function (v, k) { if (k.charAt(0) !== '_') params.append(k, v); });
+    params.append('Submitted From', location.href);
+    return fetch(SHEET_URL, { method: 'POST', mode: 'no-cors', body: params })
+      .then(function () { return true; })
+      .catch(function () { return false; });
   }
 
   form.addEventListener('submit', function (e) {
@@ -373,26 +378,20 @@
       bad.focus();
       return;
     }
+    var fd = new FormData(form);
+    if (fd.get('_honey')) return; // spam bot
     btn.disabled = true; btn.textContent = 'Sending...';
-    fetch(AJAX_URL, {
-      method: 'POST',
-      headers: { 'Accept': 'application/json' },
-      body: new FormData(form)
-    })
-    .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
-    .then(function (res) {
-      if (res.ok && String(res.d.success) === 'true') {
-        show('Thank you! Your form has been submitted successfully.', true);
-        form.reset();
-      } else {
-        show((res.d && res.d.message) || 'Something went wrong. Please try again or call (312) 981-9323.', false);
-      }
-    })
-    .catch(function () {
-      // Network/JS fallback: normal form post straight to FormSubmit
-      form.submit();
-    })
-    .finally(function () { btn.disabled = false; btn.textContent = 'Submit Form'; });
+
+    sendToSheet(fd)
+      .then(function (ok) {
+        if (ok) {
+          show('Thank you! Your form has been submitted successfully.', true);
+          form.reset();
+        } else {
+          show('Something went wrong. Please try again or call (312) 981-9323.', false);
+        }
+      })
+      .finally(function () { btn.disabled = false; btn.textContent = 'Submit Form'; });
   });
 
   form.addEventListener('reset', function (e) {
